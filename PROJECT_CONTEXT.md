@@ -266,3 +266,12 @@ Read this file first and inspect the repository before continuing. Use `C:\Codex
 - Built the Vite production site successfully with the project-local Vite executable. Output assets were regenerated under `frontend/dist`. No backend, model, dataset, or evaluation result was changed.
 - No automated tests or browser interactions were run in this update.
 - Next: manually review overview → analyze → results in the browser, then check an uploaded document and the print layout. Preserve the existing API contract and the “AI-based risk assessment / potentially fraudulent” wording.
+
+
+## 2026-10-19 overview simplification
+
+- Removed the numerical summary band and hero dataset-count badge from the overview.
+- Removed the college-project description and the overview model-evaluation section, including held-out model metrics.
+- Removed the repeated model-comparison metrics from the results view and removed the visible dataset name/source link and references across the website.
+- Kept the live assessment’s genuine/potentially-fraudulent probabilities and risk indicators, which are returned by the prediction API.
+- Rebuilt the Vite production frontend successfully. No backend, model, or evaluation artifact changed.
