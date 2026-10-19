@@ -244,8 +244,8 @@ Read this file first and inspect the repository before continuing. Use `C:\Codex
 ## 2026-10-19 Stitch UI handoff
 
 - Added `STITCH_UI_HANDOFF.md` to the project and GitHub `main`. It documents the existing React/FastAPI flows, API contract, redesign states, accessibility/visual direction, prediction language constraints, a tailored Stitch prompt, and import steps.
-- Google's May 19, 2026 announcement says Stitch supports importing existing codebases and design files. This session has no Stitch account connector, so the user must initiate import in Stitch.
-- Next: import `hitarthshah3/Bharat-Rozgaar-Sentinel` into Stitch while signed into an account with repo access, use the handoff prompt, then bring exported designs/code back for integration. Preserve API behavior and do not treat generated metrics or unsupported states as real capabilities.
+- Google's May 19, 2026 announcement says Stitch supports importing existing codebases and design files. At the time this handoff was first written, direct Stitch access was unavailable; a private Stitch project was later created and populated as recorded below.
+- Next: review the imported screen in the private Stitch project, then bring selected redesigned screens/code back for integration. Preserve API behavior and do not treat generated metrics or unsupported states as real capabilities.
 
 
 ## 2026-10-19 Stitch upload and design system
