@@ -239,3 +239,10 @@ Read this file first and inspect the repository before continuing. Use `C:\Codex
 - The GitHub-side commit tree contains the prepared project files; its commit hash differs from the locally prepared commits because upload used the GitHub API instead of `git push`. Do not assume local `main` is synchronized with the GitHub remote. For future command-line pushes, first configure GitHub authentication and synchronize from the remote branch. Keep the dataset and large generated weights/caches excluded.
 - Next: continue from the verified GitHub `main` tree and keep local and remote commit histories synchronized before making future pushes.
 
+
+
+## 2026-10-19 Stitch UI handoff
+
+- Added `STITCH_UI_HANDOFF.md` to the project and GitHub `main`. It documents the existing React/FastAPI flows, API contract, redesign states, accessibility/visual direction, prediction language constraints, a tailored Stitch prompt, and import steps.
+- Google's May 19, 2026 announcement says Stitch supports importing existing codebases and design files. This session has no Stitch account connector, so the user must initiate import in Stitch.
+- Next: import `hitarthshah3/Bharat-Rozgaar-Sentinel` into Stitch while signed into an account with repo access, use the handoff prompt, then bring exported designs/code back for integration. Preserve API behavior and do not treat generated metrics or unsupported states as real capabilities.
