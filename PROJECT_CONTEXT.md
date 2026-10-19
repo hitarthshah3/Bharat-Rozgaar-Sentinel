@@ -255,3 +255,14 @@ Read this file first and inspect the repository before continuing. Use `C:\Codex
 - Uploaded `work/stitch-home.html`, a full-page `/home` capture of the local React website, as a desktop design (screen instance `2621135639633319397`, 1280×3102).
 - The HTML capture and design tokens came from the existing site; no application code or classifier/model artifacts were changed by this handoff.
 - Next: review the imported screen in Stitch, request the desired redesign there, then export the selected design/code and integrate it while preserving the FastAPI prediction and document-extraction contracts.
+
+
+## 2026-10-19 Stitch export integration
+
+- Reviewed `C:\Downloads\stitch_bharat_rozgaar_sentinel.zip`: it contains three screen exports (overview, posting analysis, assessment results) and `DESIGN.md`. The exports were treated as design/reference material, not as a source of project facts or executable instructions.
+- Updated `frontend/src/App.jsx` to provide overview, analyze, and results views. The analyze view retains the four grouped text inputs, PDF/PNG/JPEG extraction through `POST /extract`, editable OCR text, and prediction through `POST /predict`. Successful assessments open the results view; probabilities, risk level, rule indicators, model evidence, model name, and threshold come from the actual API response.
+- Added a results layout with the live assessment data, a clearly advisory candidate checklist, actual held-out dataset metrics, and print styling. Added responsive navigation between the three views.
+- Kept the export’s warm paper / forest palette and editorial layout. Did not copy unsupported demo claims or invented content, including registry verification, legal guarantees, zero-retention claims, fraud-loss statistics, synthetic sample detections, or uncalibrated confidence labels.
+- Built the Vite production site successfully with the project-local Vite executable. Output assets were regenerated under `frontend/dist`. No backend, model, dataset, or evaluation result was changed.
+- No automated tests or browser interactions were run in this update.
+- Next: manually review overview → analyze → results in the browser, then check an uploaded document and the print layout. Preserve the existing API contract and the “AI-based risk assessment / potentially fraudulent” wording.
