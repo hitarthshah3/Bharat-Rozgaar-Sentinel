@@ -69,4 +69,3 @@ The client expects the API at `http://localhost:8000`; configure `VITE_API_URL` 
 
 The dataset is imbalanced and historical. Metrics must be interpreted with precision, recall, F1, ROC-AUC, and the confusion matrix. A risk assessment can be wrong; users should independently verify employers and never treat model output as a final determination.
 
-

@@ -1,0 +1,49 @@
+{
+  "records": 17880,
+  "columns": [
+    "job_id",
+    "title",
+    "location",
+    "department",
+    "salary_range",
+    "company_profile",
+    "description",
+    "requirements",
+    "benefits",
+    "telecommuting",
+    "has_company_logo",
+    "has_questions",
+    "employment_type",
+    "required_experience",
+    "required_education",
+    "industry",
+    "function",
+    "fraudulent"
+  ],
+  "target": "fraudulent",
+  "class_distribution": {
+    "0": 17014,
+    "1": 866
+  },
+  "blank_or_missing_per_column": {
+    "benefits": 7220,
+    "company_profile": 3308,
+    "department": 11553,
+    "description": 2,
+    "employment_type": 3471,
+    "fraudulent": 0,
+    "function": 6455,
+    "has_company_logo": 0,
+    "has_questions": 0,
+    "industry": 4903,
+    "job_id": 0,
+    "location": 346,
+    "required_education": 8105,
+    "required_experience": 7050,
+    "requirements": 2698,
+    "salary_range": 15012,
+    "telecommuting": 0,
+    "title": 0
+  },
+  "exact_duplicate_rows": 0
+}

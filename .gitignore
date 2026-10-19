@@ -1,0 +1,40 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+*.pem
+*.key
+
+# Local training dataset (download it from the source in README.md).
+data/*.csv
+
+# Local model weights and pretrained checkpoints are large generated artifacts.
+models/**
+!models/**/.gitkeep
+
+# Training caches, temporary files, and local runtime state.
+work/
+tmp/
+*.log
+
+# Keep reproducible evaluation reports and plots, but not generated predictions.
+outputs/eda/*
+!outputs/eda/.gitkeep
+!outputs/eda/*.csv
+!outputs/eda/*.json
+outputs/metrics/*
+!outputs/metrics/.gitkeep
+!outputs/metrics/*.csv
+!outputs/metrics/*.json
+outputs/plots/*
+!outputs/plots/.gitkeep
+!outputs/plots/*.png
+outputs/predictions/*
+!outputs/**/.gitkeep
+
+# Frontend dependencies and generated build output.
+frontend/node_modules/
+frontend/dist/
+
