@@ -246,3 +246,12 @@ Read this file first and inspect the repository before continuing. Use `C:\Codex
 - Added `STITCH_UI_HANDOFF.md` to the project and GitHub `main`. It documents the existing React/FastAPI flows, API contract, redesign states, accessibility/visual direction, prediction language constraints, a tailored Stitch prompt, and import steps.
 - Google's May 19, 2026 announcement says Stitch supports importing existing codebases and design files. This session has no Stitch account connector, so the user must initiate import in Stitch.
 - Next: import `hitarthshah3/Bharat-Rozgaar-Sentinel` into Stitch while signed into an account with repo access, use the handoff prompt, then bring exported designs/code back for integration. Preserve API behavior and do not treat generated metrics or unsupported states as real capabilities.
+
+
+## 2026-10-19 Stitch upload and design system
+
+- Created the private Google Stitch project **Bharat Rozgaar Sentinel** (project ID `7576516158361421257`).
+- Uploaded `work/STITCH_DESIGN.md` as the project design-system source (screen instance `4071015268694958488`) and created the Stitch design system (asset ID `54440815ea984f9cb4ea9407ce9e1abc`).
+- Uploaded `work/stitch-home.html`, a full-page `/home` capture of the local React website, as a desktop design (screen instance `2621135639633319397`, 1280×3102).
+- The HTML capture and design tokens came from the existing site; no application code or classifier/model artifacts were changed by this handoff.
+- Next: review the imported screen in Stitch, request the desired redesign there, then export the selected design/code and integrate it while preserving the FastAPI prediction and document-extraction contracts.
