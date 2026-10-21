@@ -1,0 +1,59 @@
+{
+  "model": "ensemble",
+  "accuracy": 0.9767897091722595,
+  "precision": 0.8461538461538461,
+  "recall": 0.6358381502890174,
+  "f1": 0.7260726072607261,
+  "roc_auc": 0.9857385272090761,
+  "pr_auc": 0.8469252137237654,
+  "threshold": 0.6599299638397419,
+  "confusion_matrix": [
+    [
+      3383,
+      20
+    ],
+    [
+      63,
+      110
+    ]
+  ],
+  "classification_report": {
+    "genuine": {
+      "precision": 0.981717933836332,
+      "recall": 0.994122832794593,
+      "f1-score": 0.9878814425463571,
+      "support": 3403.0
+    },
+    "potentially_fraudulent": {
+      "precision": 0.8461538461538461,
+      "recall": 0.6358381502890174,
+      "f1-score": 0.7260726072607261,
+      "support": 173.0
+    },
+    "accuracy": 0.9767897091722595,
+    "macro avg": {
+      "precision": 0.9139358899950891,
+      "recall": 0.8149804915418052,
+      "f1-score": 0.8569770249035416,
+      "support": 3576.0
+    },
+    "weighted avg": {
+      "precision": 0.9751596040910663,
+      "recall": 0.9767897091722595,
+      "f1-score": 0.9752156347990377,
+      "support": 3576.0
+    }
+  },
+  "ensemble_method": "equal-weight soft voting",
+  "members": [
+    "baseline",
+    "bilstm",
+    "distilbert"
+  ],
+  "weights": {
+    "baseline": 0.3333333333333333,
+    "bilstm": 0.3333333333333333,
+    "distilbert": 0.3333333333333333
+  },
+  "validation_f1_at_selected_threshold": 0.84375
+}

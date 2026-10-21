@@ -23,7 +23,7 @@ New-Item -ItemType Directory -Force -Path @(
     (Join-Path $projectRoot 'work')
 ) | Out-Null
 
-$env:BRS_MODEL = 'baseline'
+$env:BRS_MODEL = 'ensemble'
 $env:MPLCONFIGDIR = 'C:\Codex\cache\matplotlib'
 $env:HF_HOME = 'C:\Codex\cache\huggingface'
 $env:HF_HUB_CACHE = 'C:\Codex\cache\huggingface\hub'
@@ -42,7 +42,7 @@ function Open-DemoPage {
 
 try {
     $health = Invoke-RestMethod -Uri 'http://127.0.0.1:8000/health' -TimeoutSec 2
-    if ($health.status -eq 'ready' -and $health.model -eq 'baseline') {
+    if ($health.status -eq 'ready' -and $health.model -eq 'ensemble') {
         $schema = Invoke-RestMethod -Uri 'http://127.0.0.1:8000/openapi.json' -TimeoutSec 3
         if ($schema.paths.PSObject.Properties.Name -contains '/extract') {
             Open-DemoPage
@@ -51,6 +51,10 @@ try {
         }
 
         Write-Host 'The running demo predates document upload. Restarting the verified project server...'
+        & (Join-Path $projectRoot 'stop-demo.ps1')
+        Start-Sleep -Seconds 1
+    } elseif ($health.status -eq 'ready') {
+        Write-Host "The running demo uses '$($health.model)'. Restarting it in three-model ensemble mode..."
         & (Join-Path $projectRoot 'stop-demo.ps1')
         Start-Sleep -Seconds 1
     }
@@ -81,10 +85,10 @@ for ($attempt = 0; $attempt -lt 30; $attempt++) {
     }
     try {
         $health = Invoke-RestMethod -Uri 'http://127.0.0.1:8000/health' -TimeoutSec 2
-        if ($health.status -eq 'ready' -and $health.model -eq 'baseline') {
+        if ($health.status -eq 'ready' -and $health.model -eq 'ensemble') {
             Open-DemoPage
             Write-Host 'Bharat Rozgaar Sentinel website is ready at http://127.0.0.1:8000/'
-            Write-Host 'The full website and baseline assessment API are ready. Upload a PDF/PNG/JPG or paste posting details.'
+            Write-Host 'The full website and three-model ensemble are ready. Upload a PDF/PNG/JPG or paste posting details.'
             return
         }
     } catch {

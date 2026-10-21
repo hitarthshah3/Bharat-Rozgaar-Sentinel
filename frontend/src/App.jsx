@@ -1,16 +1,19 @@
 import React, { useEffect, useState } from 'react';
+import brandLogo from './assets/bharat-rozgaar-sentinel-mark.jpg';
 
 const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://127.0.0.1:8000' : '');
 const EMPTY = { role_and_location: '', company_and_recruiter: '', work_and_qualifications: '', pay_and_application: '' };
-const MODELS = { baseline: 'TF-IDF + Logistic Regression', bilstm: 'Word2Vec + BiLSTM', hybrid_bilstm: 'Hybrid BiLSTM', distilbert: 'DistilBERT' };
-const SCORES = [
-  ['TF-IDF + Logistic Regression', '98.99%', '89.14%', '90.17%', '89.66%', '99.34%', 'Current website model · threshold 0.50'],
-  ['Word2Vec + BiLSTM', '93.18%', '34.89%', '47.40%', '40.20%', '85.58%', 'Text-only deep learning · threshold 0.50'],
-  ['Hybrid BiLSTM', '95.55%', '56.25%', '36.42%', '44.21%', '90.81%', 'Text + metadata · validation threshold 0.6107'],
-  ['DistilBERT', '98.24%', '90.44%', '71.10%', '79.61%', '98.06%', 'Transformer · validation threshold 0.9841'],
-];
+const MODELS = { baseline: 'TF-IDF + Logistic Regression', bilstm: 'Word2Vec + BiLSTM', hybrid_bilstm: 'Hybrid BiLSTM', distilbert: 'DistilBERT', ensemble: 'Three-model ensemble' };
+const METRIC_MODEL_NAMES = { tfidf_lr: 'TF-IDF + Logistic Regression', word2vec_bilstm: 'Word2Vec + BiLSTM', distilbert: 'DistilBERT', ensemble: 'Three-model ensemble', hybrid_bilstm: 'Hybrid BiLSTM', hybrid_bilstm_0_5: 'Hybrid BiLSTM (0.5 threshold)', distilbert_0_5: 'DistilBERT (0.5 threshold)', word2vec_bilstm_ablation: 'BiLSTM text-only ablation' };
+const SHORT_REASONS = { 'upfront payment request': 'Upfront fees', 'unusually high pay claim': 'High pay', 'informal contact channel': 'Informal contact', 'urgent hiring language': 'Urgent hiring', 'sensitive information request': 'Sensitive data', 'company profile not provided': 'No profile', 'company logo not provided': 'No logo', 'no listed warning pattern matched': 'No rule match' };
+
+function PageLink({ page, active, children, onNavigate }) {
+  return <button className={active ? 'active' : ''} type="button" onClick={() => onNavigate(page)}>{children}</button>;
+}
 
 export default function App() {
+  const initialPage = ['home', 'analyze', 'results'].includes(window.location.hash.slice(1)) ? window.location.hash.slice(1) : 'home';
+  const [page, setPage] = useState(initialPage);
   const [posting, setPosting] = useState(EMPTY);
   const [api, setApi] = useState('checking');
   const [model, setModel] = useState('baseline');
@@ -20,6 +23,10 @@ export default function App() {
   const [uploadError, setUploadError] = useState('');
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
+  const [showMetrics, setShowMetrics] = useState(false);
+  const [metrics, setMetrics] = useState(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricsError, setMetricsError] = useState('');
   const [busy, setBusy] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [drag, setDrag] = useState(false);
@@ -36,6 +43,32 @@ export default function App() {
     check(); const id = setInterval(check, 30000);
     return () => { alive = false; clearInterval(id); };
   }, []);
+
+  useEffect(() => {
+    const sync = () => { const next = window.location.hash.slice(1); if (['home', 'analyze', 'results'].includes(next)) setPage(next); };
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, []);
+
+  function navigate(next) {
+    setPage(next);
+    if (window.location.hash !== `#${next}`) window.history.pushState(null, '', `#${next}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function toggleMetrics() {
+    if (showMetrics) { setShowMetrics(false); return; }
+    setShowMetrics(true);
+    if (metrics !== null || metricsLoading) return;
+    setMetricsLoading(true); setMetricsError('');
+    try {
+      const response = await fetch(`${API}/metrics`);
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || 'Evaluation metrics could not be loaded.');
+      setMetrics(body.models || []);
+    } catch (e) { setMetricsError(e.message || 'Evaluation metrics could not be loaded.'); }
+    finally { setMetricsLoading(false); }
+  }
 
   function chooseFile(next) {
     setUploadError(''); setExtract(null); setText('');
@@ -69,7 +102,7 @@ export default function App() {
       const body = await r.json();
       if (!r.ok) throw new Error(body.detail || 'The assessment service could not process this posting.');
       setResult(body);
-      setTimeout(() => document.getElementById('result-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+      navigate('results');
     } catch (e) { setError(e.message || 'The local assessment API could not be reached.'); }
     finally { setBusy(false); }
   }
@@ -84,20 +117,24 @@ export default function App() {
   }
   function drop(event) { event.preventDefault(); setDrag(false); chooseFile(event.dataTransfer.files?.[0]); }
 
-  const fraud = result ? Math.max(0, Math.min(100, result.fraud_probability * 100)) : 0;
+  const fraud = result ? Math.max(0, Math.min(100, Number(result.fraud_probability || 0) * 100)) : 0;
+  const genuine = result ? Math.max(0, Math.min(100, Number(result.genuine_probability ?? (1 - Number(result.fraud_probability || 0))) * 100)) : 0;
   const modelName = MODELS[result?.model_used || model] || result?.model_used || 'Model';
   const risk = ['low', 'moderate', 'high'].includes(result?.risk_level) ? result.risk_level : 'moderate';
+  const label = result?.assessment === 'genuine' ? 'Genuine classification' : 'Potentially fraudulent';
 
   return <>
     <div className="topline"><i /> Local job-posting review · No account needed</div>
-    <nav className="nav"><a className="brand" href="#home"><span className="brand-mark">RS</span><span><b>Rozgaar</b><small>SENTINEL</small></span></a><div className="nav-links"><a href="#analyze">Analyze</a><a href="#how">How it works</a><a href="#models">Model results</a><a href="#about">About</a></div><span className={`api-status ${api}`}><i />{api === 'online' ? 'System online' : api === 'checking' ? 'Connecting' : 'API offline'}</span></nav>
+    <nav className="nav"><button className="brand" type="button" onClick={() => navigate('home')}><span className="brand-logo"><img src={brandLogo} alt="Bharat Rozgaar Sentinel logo" /></span><span className="brand-name">Bharat Rozgaar Sentinel</span></button><div className="nav-links"><PageLink page="home" active={page === 'home'} onNavigate={navigate}>About / Overview</PageLink><PageLink page="analyze" active={page === 'analyze'} onNavigate={navigate}>Analyze Posting</PageLink><PageLink page="results" active={page === 'results'} onNavigate={navigate}>Results &amp; Indicators</PageLink></div></nav>
 
     <main id="home">
-      <section className="hero wrap"><div className="hero-copy"><div className="eyebrow">01 <span /> EMPLOYMENT SAFETY, WITH CONTEXT</div><h1>Before you say yes,<br /><em>look a little closer.</em></h1><p>Review a job posting for patterns associated with employment scams. Get an AI-based risk assessment and see which signals deserve a closer look.</p><a className="primary" href="#analyze">Check a job posting <b>↗</b></a><div className="hero-points"><span>✓ No signup</span><span>✓ PDF and image input</span><span>✓ Explainable signals</span></div></div><div className="hero-art"><div className="orbit o1" /><div className="orbit o2" /><div className="art-card"><div className="art-top"><span>POSTING REVIEW</span><span className="live-dot">● MODEL READY</span></div><div className="shield">◇</div><small>AI-BASED RISK ASSESSMENT</small><h2>Signals to consider.</h2><div className="art-bars"><i /><i /><i /></div><div className="bar-labels"><span>Genuine indicators</span><span>Risk indicators</span></div><div className="art-foot">A useful check. Never a final verdict.</div></div><div className="float float-a">17,880 <small>job postings in the research dataset</small></div><div className="float float-b">Read the details,<br />not just the promise.</div></div></section>
+      {page === 'home' && <>
+        <section className="hero wrap"><div className="hero-copy"><div className="eyebrow">01 <span /> EMPLOYMENT SAFETY, WITH CONTEXT</div><h1>Before you say yes,<br /><em>look a little closer.</em></h1><p>Review a job posting for patterns associated with employment scams. Get an AI-based risk assessment and see which signals deserve a closer look.</p><button className="primary" type="button" onClick={() => navigate('analyze')}>Start job assessment <b>↗</b></button><div className="hero-points"><span>✓ No signup</span><span>✓ PDF and image input</span><span>✓ Explainable signals</span></div></div><div className="hero-art"><div className="orbit o1" /><div className="orbit o2" /><div className="art-card"><div className="art-top"><span>POSTING REVIEW</span><span className="live-dot">● MODEL READY</span></div><div className="shield">◇</div><small>AI-BASED RISK ASSESSMENT</small><h2>Signals to consider.</h2><div className="art-bars"><i /><i /><i /></div><div className="bar-labels"><span>Genuine indicators</span><span>Risk indicators</span></div><div className="art-foot">A useful check. Never a final verdict.</div></div><div className="float float-b">Read the details,<br />not just the promise.</div></div></section>
+        <section className="home-info wrap"><div className="section-head"><div><div className="eyebrow">WHAT IS BHARAT ROZGAAR SENTINEL?</div><h2>A careful second look at a job posting.</h2><p>A practical way to review job details and spot signals worth checking.</p></div></div><div className="steps"><article><b>01</b><i>▤</i><h3>Bring the posting</h3><p>Paste details into four plain-language sections, or upload a PDF or screenshot.</p></article><article><b>02</b><i>✳</i><h3>Review the text</h3><p>Correct any mistakes in extracted text before sending it for analysis.</p></article><article><b>03</b><i>◇</i><h3>Check the signals</h3><p>The model estimates risk and highlights patterns worth investigating.</p></article><article><b>04</b><i>✓</i><h3>Verify independently</h3><p>Check the employer’s official website and contact details. Don’t pay to apply.</p></article></div></section>
+        <section className="about"><div className="wrap about-grid"><div><div className="eyebrow">ABOUT THE PROJECT</div><h2>Research-led.<br /><em>People-first.</em></h2><p>Bharat Rozgaar Sentinel explores how natural language processing and deep learning can help people review suspicious employment postings.</p><p>It reviews job-posting text and offers an AI-based risk assessment to support independent checks.</p></div><div className="about-card"><span>ⓘ</span><h3>Keep a healthy amount of doubt.</h3><p>The model has not been validated on offer letters or every type of scam. A low risk score does not prove an offer is safe.</p><ul><li>Verify the company and recruiter independently.</li><li>Be cautious about requests for money or sensitive details.</li><li>Use the assessment as one signal among several.</li></ul></div></div></section>
+      </>}
 
-      <section className="stats"><div className="stats-inner wrap"><div><b>4</b><span>models compared</span></div><div><b>17,880</b><span>dataset postings</span></div><div><b>866</b><span>fraud-labelled records</span></div><p>Research metrics describe a held-out dataset split, not real-world guarantees.</p></div></section>
-
-      <section className="analyze wrap" id="analyze"><div className="section-head"><div><div className="eyebrow">02 <span /> POSTING ANALYZER</div><h2>What did you find?</h2><p>Paste the details you have, or upload a document and review the extracted text.</p></div><button className="link-button" type="button" onClick={sample}>Load sample posting ↗</button></div>
+      {page === 'analyze' && <section className="analyze wrap page-section"><div className="section-head"><div><div className="eyebrow">02 <span /> POSTING ANALYZER</div><h2>What did you find?</h2><p>Paste the details you have, or upload a document and review the extracted text.</p></div><button className="link-button" type="button" onClick={sample}>Load sample posting ↗</button></div>
         <div className="analyze-grid"><form className="form-card" onSubmit={assess}><div className="form-top"><span>ADD POSTING TEXT</span><button type="button" onClick={clearAll}>Clear all</button></div>
           <div className={`dropzone ${drag ? 'drag' : ''} ${file ? 'selected' : ''}`} onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={drop}><span className="upload-icon">↑</span><div className="file-copy"><b>{file ? file.name : 'Have a screenshot or PDF?'}</b><small>{file ? `${(file.size / 1048576).toFixed(1)} MB · ready to extract` : 'Drop it here or browse from your device'}</small></div><label htmlFor="job-file" className="choose">{file ? 'Change file' : 'Choose file'}</label><input id="job-file" type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={e => chooseFile(e.target.files?.[0])} /></div>
           <div className="upload-row"><span>PDF, PNG or JPG · up to 15 MB</span><button type="button" onClick={extractText} disabled={!file || extracting}>{extracting ? 'Extracting…' : 'Extract text'}</button></div>
@@ -107,16 +144,19 @@ export default function App() {
           <div className="fields"><label>Job and location<textarea name="role_and_location" rows="3" value={posting.role_and_location} onChange={e => setPosting({ ...posting, [e.target.name]: e.target.value })} placeholder="Role, title, location, remote or on-site details…" /></label><label>Company and recruiter<textarea name="company_and_recruiter" rows="3" value={posting.company_and_recruiter} onChange={e => setPosting({ ...posting, [e.target.name]: e.target.value })} placeholder="Company background, recruiter, contact or website…" /></label><label className="wide">Work and qualifications<textarea name="work_and_qualifications" rows="4" value={posting.work_and_qualifications} onChange={e => setPosting({ ...posting, [e.target.name]: e.target.value })} placeholder="Responsibilities, experience, skills, education, work arrangement…" /></label><label className="wide">Pay, benefits and next steps<textarea name="pay_and_application" rows="4" value={posting.pay_and_application} onChange={e => setPosting({ ...posting, [e.target.name]: e.target.value })} placeholder="Salary, benefits, how to apply, interview steps, fees or payments…" /></label></div>
           {error && <p className="error form-error" role="alert">{error}</p>}<button className="primary submit" type="submit" disabled={busy || api !== 'online'}>{busy ? 'Reviewing posting…' : 'Assess this posting'} <b>{busy ? '◌' : '↗'}</b></button>{api !== 'online' && <p className="api-help">Start the local demo server, then refresh this page.</p>}<p className="privacy">Uploads are processed by this local app and are not saved as files. Review the extracted text before assessment.</p>
         </form>
+        <aside className="method-card"><div className="eyebrow">EVALUATION METHODOLOGY</div><h3>Signals, not verdicts.</h3><p>We look at wording across the posting and show a risk assessment from the selected model.</p><div><b>01</b><span><strong>Contextual text review</strong><small>Language is combined across the details you provide.</small></span></div><div><b>02</b><span><strong>Transparent result</strong><small>Review model probabilities and available risk indicators.</small></span></div><div><b>03</b><span><strong>Your decision</strong><small>Verify the employer through independent, official channels.</small></span></div><p className="method-note">The model can be wrong. Its output is not proof that a job is genuine or fraudulent.</p></aside></div>
+      </section>}
 
-        <aside className="result-column" id="result-card" aria-live="polite">{result ? <div className={`result-card ${risk}`}><div className="result-head"><span>AI-BASED ASSESSMENT</span><b className={`risk-pill ${risk}`}>{risk} risk</b></div><div className="model-line"><span className={`result-icon ${risk}`}>{result.assessment === 'genuine' ? '✓' : '!'}</span><div><small>CURRENT MODEL</small><b>{modelName}</b></div></div><h3>{result.assessment === 'genuine' ? 'Fewer fraud signals found' : 'Some signals need a closer look'}</h3><p className="summary">This estimate reflects patterns in the supplied text. It is not a definitive determination.</p><div className="probability"><div><span>Potentially fraudulent</span><b>{fraud.toFixed(1)}%</b></div><i className="fraud-track"><em style={{ width: `${fraud}%` }} /></i><div><span>Genuine</span><b>{(100 - fraud).toFixed(1)}%</b></div><i className="genuine-track"><em style={{ width: `${100 - fraud}%` }} /></i><small>Decision threshold: {Number(result.decision_threshold ?? .5).toFixed(2)}</small></div><div className="signals"><h4>Signals to review <small>{(result.risk_indicators || []).length} found</small></h4>{result.risk_indicators?.length ? result.risk_indicators.map((item, i) => <div className="signal" key={i}><span>↗</span><div><b>{item.indicator}</b><p>{item.detail}</p></div></div>) : <p className="no-signal">No rule-based warning patterns were triggered. Keep verifying the employer.</p>}</div>{result.model_token_evidence?.length > 0 && <div className="signals"><h4>Model wording evidence</h4><div className="tokens">{result.model_token_evidence.map((item, i) => <span key={i} className={item.direction}>{item.term}<small>{item.direction}</small></span>)}</div></div>}<p className="disclaimer">{result.assessment_type}</p></div> : <div className="placeholder"><span className="placeholder-icon">✳</span><small>YOUR REVIEW, YOUR DECISION</small><h3>Signals, not verdicts.</h3><p>After an assessment, this panel will show the model probabilities, risk level, and indicators worth reviewing.</p><hr /><div><b>01</b> We look at the wording across the posting.</div><div><b>02</b> You see the score and contributing signals.</div><div><b>03</b> You decide what to verify next.</div><aside>The model can be wrong. Never treat its output as proof that a job is genuine or fraudulent.</aside></div>}</aside></div>
-      </section>
-
-      <section className="how" id="how"><div className="wrap"><div className="center-head"><div className="eyebrow">03 <span /> A CLEARER WAY TO CHECK</div><h2>From posting to perspective.</h2><p>You stay in control at every step.</p></div><div className="steps"><article><b>01</b><i>▤</i><h3>Bring the posting</h3><p>Paste details into four plain-language sections, or upload a PDF or screenshot.</p></article><article><b>02</b><i>✳</i><h3>Review the text</h3><p>Correct any mistakes in extracted text before sending it for analysis.</p></article><article><b>03</b><i>◇</i><h3>Check the signals</h3><p>The NLP model estimates risk and highlights patterns worth investigating.</p></article><article><b>04</b><i>✓</i><h3>Verify independently</h3><p>Check the employer’s official website and contact details. Don’t pay to apply.</p></article></div></div></section>
-
-      <section className="models wrap" id="models"><div className="section-head"><div><div className="eyebrow">04 <span /> MODEL EVALUATION</div><h2>Built, trained and compared.</h2><p>Measured on a stratified held-out test split from the project dataset.</p></div><div className="test-tag"><small>TEST SPLIT</small><b>3,576 postings</b></div></div><div className="table-scroll"><table><thead><tr><th>MODEL</th><th>ACCURACY</th><th>PRECISION</th><th>FRAUD RECALL</th><th>F1</th><th>ROC-AUC</th></tr></thead><tbody>{SCORES.map((row, i) => <tr key={row[0]} className={i === 0 ? 'best' : ''}><td><b>{row[0]}</b><small>{row[6]}</small></td>{row.slice(1, 6).map((value, j) => <td key={j}>{value}</td>)}</tr>)}</tbody></table></div><div className="metrics-note"><span>ⓘ Accuracy can look high on imbalanced data. Review fraud recall, precision and F1 together.</span><small>One held-out split · not deployment validation</small></div><div className="dataset"><span>DATA<br />SET</span><div><b>Employment Scam Aegean Dataset</b><small>17,880 historical postings · 866 fraudulent · 17,014 genuine</small></div><a href="https://www.kaggle.com/datasets/shivamb/real-or-fake-fake-jobposting-prediction" target="_blank" rel="noreferrer">Dataset source ↗</a></div></section>
-
-      <section className="about" id="about"><div className="wrap about-grid"><div><div className="eyebrow">05 <span /> ABOUT THE PROJECT</div><h2>Research-led.<br /><em>People-first.</em></h2><p>Bharat Rozgaar Sentinel is a college project exploring how natural language processing and deep learning can help people review suspicious employment postings.</p><p>It compares a TF-IDF baseline with Word2Vec/BiLSTM and DistilBERT models trained on the same dataset.</p></div><div className="about-card"><span>ⓘ</span><h3>Keep a healthy amount of doubt.</h3><p>The training data is historical and mostly contains online job postings. The model has not been validated on offer letters or every type of scam. A low risk score does not prove an offer is safe.</p><ul><li>Verify the company and recruiter independently.</li><li>Be cautious about requests for money or sensitive details.</li><li>Use the assessment as one signal among several.</li></ul></div></div></section>
+      {page === 'results' && <section className="review-page wrap page-section">{result ? <>
+        <div className="review-kicker"><span>03 / POSTING ASSESSMENT</span><button className="print-button" type="button" onClick={() => window.print()}>Print this summary</button></div>
+        <section className={`review-summary ${risk}`}><div><div className="eyebrow">AI-BASED RISK ASSESSMENT</div><h1>{risk === 'low' ? 'Fewer warning signals found' : risk === 'high' ? 'Several signals need attention' : 'Review these signals before deciding'}</h1><p>Summary first; model probabilities, model contributions, and review indicators below show how to interpret this estimate. It is not a definitive determination.</p></div><div className={`risk-badge ${risk}`}><small>ASSESSMENT</small><b>{risk} risk</b><span>{label}</span></div></section>
+        <div className="review-layout"><section className="evidence-panel"><div className="panel-heading"><div><div className="eyebrow">PART I / MODEL OUTPUT</div><h2>Probability estimates</h2></div><span className="model-chip">{modelName}</span></div><div className="probability-grid"><article><small>POTENTIALLY FRAUDULENT</small><b>{fraud.toFixed(1)}%</b><i className="fraud-track"><em style={{ width: `${fraud}%` }} /></i></article><article><small>GENUINE</small><b>{genuine.toFixed(1)}%</b><i className="genuine-track"><em style={{ width: `${genuine}%` }} /></i></article></div><div className="panel-heading signal-heading"><div><div className="eyebrow">PART II / INDICATORS</div><h2>Signals to review</h2></div><span>{(result.risk_indicators || []).length} reported</span></div>{result.risk_indicators?.length ? <div className="review-signals">{result.risk_indicators.map((item, i) => <article key={i}><span className="signal-index">{String(i + 1).padStart(2, '0')}</span><div><h3><span className="reason-tag">{SHORT_REASONS[item.indicator?.toLowerCase()] || 'Review signal'}</span>{item.indicator}</h3><p>{item.detail}</p></div><span className="signal-mark">↗</span></article>)}</div> : <p className="no-signals">No rule-based warning indicators were triggered. This does not establish that the posting is safe.</p>}{result.model_token_evidence?.length > 0 && <div className="token-evidence"><h3>Model wording evidence</h3><p className="evidence-note">Learned word associations from the TF-IDF component; these do not prove fraud.</p><div className="tokens">{result.model_token_evidence.map((item, i) => <span key={i} className={item.direction}>{item.term}<small>{item.direction.includes('fraud') ? 'Fraud cue' : 'Genuine cue'}</small></span>)}</div></div>}</section>
+          <aside className="verification-panel"><div className="eyebrow">PART III / VERIFY NEXT</div><h2>What to verify next</h2><p>Use independent sources to confirm details before sharing money or sensitive information.</p><ol><li><b>01</b><span><strong>Check the official employer site</strong><small>Find the role and recruiter contact using the company’s published channels.</small></span></li><li><b>02</b><span><strong>Verify the communication channel</strong><small>Look for a matching company domain and independently confirmed contact details.</small></span></li><li><b>03</b><span><strong>Pause before paying or sharing ID</strong><small>Be cautious if asked for fees or sensitive documents early in recruitment.</small></span></li></ol><div className="caution-note">This app does not verify company registration, recruiter identity, or offer-letter authenticity.</div></aside></div>
+        <div className="metrics-area"><button className="metrics-toggle" type="button" onClick={toggleMetrics}>{showMetrics ? 'Hide model evaluation metrics' : 'View model evaluation metrics'} <span>{showMetrics ? '−' : '+'}</span></button>{showMetrics && <section className="metrics-panel"><div className="metrics-panel-head"><div><h2>Held-out model results</h2><p>Scores describe the dataset test split, not certainty for this posting.</p></div><span>TEST EVALUATION</span></div>{metricsLoading ? <p className="metrics-message">Loading saved evaluation reports…</p> : metricsError ? <p className="metrics-message error">{metricsError}</p> : metrics?.length ? <div className="metrics-table-wrap"><table><thead><tr><th>Model</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1</th><th>ROC-AUC</th><th>PR-AUC</th></tr></thead><tbody>{metrics.map(row => <tr className={row.model === 'ensemble' ? 'ensemble-row' : ''} key={row.model}><td>{METRIC_MODEL_NAMES[row.model] || row.model}</td>{['accuracy','precision','recall','f1','roc_auc','pr_auc'].map(key => <td key={key}>{row[key] == null ? '—' : `${(Number(row[key]) * 100).toFixed(2)}%`}</td>)}</tr>)}</tbody></table></div> : <p className="metrics-message">No saved evaluation reports were found.</p>}</section>}</div>
+        <div className="review-actions"><button className="secondary-button" type="button" onClick={() => navigate('analyze')}>Back to posting</button><button className="primary" type="button" onClick={() => { clearAll(); navigate('analyze'); }}>Analyze another posting <b>↗</b></button></div>
+      </> : <div className="empty-review"><div className="eyebrow">03 / RESULTS &amp; INDICATORS</div><h1>Your assessment will appear here.</h1><p>Submit a job posting first. You’ll see model probabilities, risk indicators and practical checks to consider.</p><button className="primary" type="button" onClick={() => navigate('analyze')}>Analyze a posting <b>↗</b></button></div>}</section>}
     </main>
-    <footer className="footer"><div className="wrap footer-main"><a className="brand" href="#home"><span className="brand-mark">RS</span><span><b>Rozgaar</b><small>SENTINEL</small></span></a><p>AI-based risk assessment · Not proof of fraud</p><a href="#home">Back to top ↑</a></div><div className="wrap footer-bottom"><span>© Bharat Rozgaar Sentinel · NLP + Deep Learning project</span><span>Built for more informed job searches.</span></div></footer>
+    <footer className="footer"><div className="wrap footer-main"><button className="brand" type="button" onClick={() => navigate('home')}><span className="brand-logo"><img src={brandLogo} alt="Bharat Rozgaar Sentinel logo" /></span><span className="brand-name">Bharat Rozgaar Sentinel</span></button><p>AI-based risk assessment · Not proof of fraud</p><button className="footer-home" type="button" onClick={() => navigate('home')}>Back to overview ↑</button></div><div className="wrap footer-bottom"><span>© Bharat Rozgaar Sentinel</span></div></footer>
   </>;
 }
+

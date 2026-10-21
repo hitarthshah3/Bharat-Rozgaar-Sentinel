@@ -38,3 +38,7 @@ outputs/predictions/*
 frontend/node_modules/
 frontend/dist/
 
+
+# Keep the small inference configuration for the reproducible three-model ensemble.
+!models/ensemble/
+!models/ensemble/ensemble_config.json

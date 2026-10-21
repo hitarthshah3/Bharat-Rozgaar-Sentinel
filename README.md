@@ -32,18 +32,32 @@ The DistilBERT trainer selects its decision threshold on validation probabilitie
 
 ## API
 
-After training a model:
+The website defaults to a three-model ensemble: TF-IDF + Logistic Regression, Word2Vec + BiLSTM, and DistilBERT. With the existing trained artifacts, generate the ensemble configuration and its held-out evaluation first:
 
 ```powershell
-$env:BRS_MODEL = "baseline"
+python -m src.evaluation.ensemble
+$env:BRS_MODEL = "ensemble"
 uvicorn src.inference.api:app --reload
 ```
 
-Set `BRS_MODEL` to `baseline`, `bilstm`, `hybrid_bilstm`, or `distilbert` to select an available artifact. For example, use `hybrid_bilstm` to load the metadata-fusion BiLSTM. Open `/docs` for the interactive API. Set `BRS_MODEL_PATH` to override the selected model artifact. Health reports whether that artifact is available.
+The evaluator uses equal one-third weights and selects the decision threshold from validation F1; the held-out test split remains untouched until final evaluation. It saves the inference config to `models/ensemble/ensemble_config.json`, measured scores to `outputs/metrics/ensemble.json`, and individual test predictions to `outputs/predictions/ensemble_test_predictions.csv`. To run one model on its own for comparison, set `BRS_MODEL` to `baseline`, `bilstm`, `hybrid_bilstm`, or `distilbert` before starting the server. Open `/docs` for the interactive API. Set `BRS_MODEL_PATH` to override a selected single-model artifact. Health reports whether the configured model is available.
 
 For DistilBERT, the pretrained checkpoint is cached under `work/huggingface_cache`. The current computer uses CPU-only PyTorch. The recorded model was trained for one epoch on all 12,873 training rows with sequence length 64; longer or multi-epoch CPU runs will take substantially more time.
 
 ## Full local website
+Start the site from **PowerShell** or **Windows Terminal** from any folder with this command:
+
+```powershell
+& "C:\Codex\Projects\Bharat Rozgar Sentinel\start-demo.ps1"
+```
+
+If PowerShell blocks the script because of its execution policy, use this one-time command instead:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Codex\Projects\Bharat Rozgar Sentinel\start-demo.ps1"
+```
+
+The launcher starts or reuses the API and opens the website in your browser. Keep using `http://127.0.0.1:8000/` while the local server is running.
 
 The website is a responsive React application built with Vite. Rebuild the frontend from `frontend/` with pnpm (`pnpm install`, then `pnpm build`). FastAPI serves the built site together with the assessment API. Double-click `Launch Demo.bat` to open `http://127.0.0.1:8000/`; Node.js is not needed after the build. Use `stop-demo.ps1` from PowerShell to stop it.
 

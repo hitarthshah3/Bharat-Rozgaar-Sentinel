@@ -1,0 +1,18 @@
+{
+  "model": "ensemble",
+  "members": [
+    "baseline",
+    "bilstm",
+    "distilbert"
+  ],
+  "weights": {
+    "baseline": 0.3333333333333333,
+    "bilstm": 0.3333333333333333,
+    "distilbert": 0.3333333333333333
+  },
+  "method": "equal-weight soft voting",
+  "decision_threshold": 0.6599299638397419,
+  "threshold_selection": "maximum validation F1; held-out test split untouched",
+  "validation_f1": 0.84375,
+  "seed": 42
+}

@@ -8,7 +8,7 @@
 - **Problem:** Binary classification of job postings using the `fraudulent` label.
 - **Dataset:** `data/fake_job_postings.csv`, the CSV supplied by the user.
 - **Source:** Kaggle Employment Scam Aegean Dataset, https://www.kaggle.com/datasets/shivamb/real-or-fake-fake-jobposting-prediction (source supplied by user; no other dataset used).
-- **Current status:** Dataset discovery/validation, EDA, four trained classifier artifacts, evaluation reports, explainability, document extraction, and FastAPI inference are complete. The full responsive React website is built with Vite and served by FastAPI at `http://127.0.0.1:8000/`. Uploads support PDF/PNG/JPEG and editable extracted text. Empty assessments are rejected. The classifier was not retrained for document upload.
+- **Current status:** Dataset discovery/validation, EDA, four trained classifier artifacts, evaluation reports, explainability, document extraction, and FastAPI inference are complete. The three-model ensemble is now evaluated and wired into the API and website. The full responsive React website is built with Vite and served by FastAPI at `http://127.0.0.1:8000/`. Uploads support PDF/PNG/JPEG and editable extracted text. Empty assessments are rejected. The classifier was not retrained for document upload.
 
 ## Architecture
 
@@ -35,6 +35,7 @@ All splits are stratified and seeded; the held-out test split is reserved for fi
 | Hybrid Word2Vec + BiLSTM + metadata | Implemented (`src/models/bilstm/model.py`, `src/train.py`, `src/inference/predict.py`) | Trained | Seed 42, CPU, 3 epochs, batch 32, max length 160, 128d embeddings/hidden, dropout .35, weighted BCE. Train-only one-hot schema for five categorical fields and three binary fields. Validation-selected threshold 0.610729; metrics below; artifact `models/hybrid_bilstm/model.pt` and `word2vec.model`. Inference and API route handler smoke checks passed. |
 | Matched text-only BiLSTM ablation | Same BiLSTM architecture, separate artifact | Trained | Same split and configuration as hybrid, threshold 0.5; artifact under `models/word2vec_bilstm_ablation/`; report under `outputs/metrics/word2vec_bilstm_ablation.json`. |
 | DistilBERT | Implemented (`src/train.py`, `src/inference/predict.py`) | Complete (one full-data epoch) | `distilbert-base-uncased` checkpoint cached locally. Seed 42, CPU, all 12,873 training rows, batch 32, max length 64, 2 CPU threads, learning rate 2e-5, weighted cross-entropy; full 1,431-row validation and 3,576-row test partitions. Validation F1 at 0.5 = 0.7186; validation-selected threshold = 0.984093 (validation F1 0.8254). Test metrics below at both selected and fixed thresholds. Artifact `models/distilbert/`; metadata `models/distilbert/training_metadata.json`. One epoch and 64-token truncation are compute constraints; multi-epoch/longer-context experiments remain future work. |
+| Equal-weight ensemble (TF-IDF + Logistic Regression, Word2Vec + BiLSTM, DistilBERT) | Implemented (`src/evaluation/ensemble.py`, `src/inference/predict.py`) | Evaluated | Soft-voting weights 1/3 each. Decision threshold 0.659930 selected by maximum validation F1 (validation F1 0.84375); evaluated once on the same held-out test split. Config `models/ensemble/ensemble_config.json`; report `outputs/metrics/ensemble.json`; per-model test scores `outputs/predictions/ensemble_test_predictions.csv`. |
 
 ## Current best results
 
@@ -49,8 +50,9 @@ Only measured evaluation values belong here.
 | Matched text-only BiLSTM ablation, threshold 0.5 | 0.9181 | 0.2887 | 0.4740 | 0.3589 | 0.8857 |
 | DistilBERT, validation-selected threshold | 0.9824 | 0.9044 | 0.7110 | 0.7961 | 0.9806 |
 | DistilBERT, threshold 0.5 | 0.9678 | 0.6239 | 0.8439 | 0.7174 | 0.9806 |
+| Three-model equal-weight ensemble, validation-selected threshold | 0.9768 | 0.8462 | 0.6358 | 0.7261 | 0.9857 |
 
-Measured average precision (PR-AUC): TF-IDF 0.9542; text BiLSTM 0.4241; hybrid BiLSTM 0.4130; matched text-only ablation 0.2854; DistilBERT 0.8633. TF-IDF remains best by test F1 and ROC-AUC. DistilBERT's validation-selected threshold gives higher test precision and F1 than its fixed 0.5 setting, while fixed 0.5 yields higher fraud recall. These are results on one historical dataset split, not deployment validation.
+Measured average precision (PR-AUC): TF-IDF 0.9542; text BiLSTM 0.4241; hybrid BiLSTM 0.4130; matched text-only ablation 0.2854; DistilBERT 0.8633; equal-weight ensemble 0.8469. TF-IDF remains best by test F1 and ROC-AUC; the three-model ensemble has lower F1 (0.7261) than the standalone baseline (0.8966), though it provides one combined output and outperforms the standalone BiLSTM. These are results on one historical dataset split, not deployment validation.
 
 ## Decisions log
 
@@ -73,6 +75,7 @@ Measured average precision (PR-AUC): TF-IDF 0.9542; text BiLSTM 0.4241; hybrid B
 - 2026-10-19 — Group the demo inputs into four free-text areas and map them into existing trained text fields; keep the browser payload compatible with the legacy API schema. Reason: make the demo easier to use while preserving the existing NLP model contract and support for the already-running server.
 - 2026-10-19 — Add document extraction as a separate pre-inference step using PyMuPDF and RapidOCR, with an editable preview and no classifier retraining. Reason: accept PDF and screenshot text while retaining the existing dataset-trained prediction pipeline; OCR is a text extraction dependency, not another fraud dataset.
 - 2026-10-19 — Bound uploads to 15 MB and 12 pages and spool multipart temporary files under `C:\Codex\tmp`. Reason: constrain local demo resource use and follow the user's requested project/runtime location.
+- 2026-10-21 — Add an equal-weight soft-voting ensemble of the trained TF-IDF + Logistic Regression, text-only Word2Vec + BiLSTM, and DistilBERT models. Select only the decision threshold on validation F1, then evaluate once on the held-out test split. Reason: provide a transparent combined assessment without choosing weights from the test set; preserve per-model scores so the result is inspectable.
 
 ## Current TODO
 
@@ -89,6 +92,8 @@ Measured average precision (PR-AUC): TF-IDF 0.9542; text BiLSTM 0.4241; hybrid B
 - [x] Add baseline, BiLSTM, hybrid BiLSTM and DistilBERT loading/prediction paths; use saved validation threshold for hybrid and DistilBERT.
 - [x] Train DistilBERT for one epoch on the full training partition with the available CPU budget; evaluate the untouched full validation and test partitions.
 - [x] Smoke-check baseline, text BiLSTM, hybrid BiLSTM, and DistilBERT through inference and FastAPI route handlers; refresh the model comparison table.
+- [x] Evaluate the equal-weight TF-IDF + Logistic Regression, Word2Vec + BiLSTM, and DistilBERT ensemble; save its validation-selected threshold, held-out metrics, and per-model test probabilities.
+- [x] Add ensemble inference mode, return the three component probabilities, expose saved evaluation metrics through `/metrics`, and add the component scores and metrics button to the results UI.
 - [x] Verify the live HTTP demo page, health endpoint, and prediction endpoint.
 - [x] Replace dataset-column form fields with four free-text sections and adapt them to the existing NLP inference inputs; retain legacy API field compatibility and keep the result view unchanged.
 - [x] Add PDF, PNG, and JPEG upload UI, text extraction endpoint, editable OCR preview, and assessment of user-reviewed document text.
@@ -108,7 +113,8 @@ Measured average precision (PR-AUC): TF-IDF 0.9542; text BiLSTM 0.4241; hybrid B
 - The demo runs locally at `http://127.0.0.1:8000/` while its API process is active. The launcher reports the URL if it cannot open a browser automatically.
 - DistilBERT fine-tuning may require access to the configured pretrained checkpoint. No external dataset is used by the project; document the pretrained model separately from training data.
 - EDA emits a pandas warning about `select_dtypes(include="object")` behavior under pandas 3; the measured summary was generated successfully.
-- The API defaults to the baseline. Set `BRS_MODEL` to select another trained artifact. Live HTTP health, `/extract`, `/predict`, and empty-input rejection were verified during the 2026-10-19 audit; all four model artifacts also passed direct inference smoke checks.
+- Historical note (superseded 2026-10-21): the API previously defaulted to the baseline. It now defaults to the evaluated three-model ensemble; single-model comparisons remain selectable with `BRS_MODEL`.
+- The equal-weight ensemble is not the strongest measured model on this single test split: F1 is 0.7261 versus TF-IDF + Logistic Regression F1 0.8966. The website shows this comparison. Do not describe ensembling as an accuracy improvement; equal weights are a transparent starting choice and future experiments may select/calibrate weights on validation data only.
 - The four-section form is a friendlier text-only input path. Its API adapter places job/location into `title`, company/recruiter details into `company_profile`, and the two remaining sections into a headed `description`; metadata fields stay empty unless a legacy client supplies them. This does not retrain any model or add new training features.
 - Upload extraction accepts PDF, PNG, and JPEG files up to 15 MB and PDFs up to 12 pages. Native PDF text uses PyMuPDF; image OCR uses RapidOCR/ONNX Runtime with bundled pretrained English OCR models. The upload is not persisted by application code; FastAPI multipart spool files are directed to `C:\Codex\tmp`. Review OCR output before assessment.
 - Fraud-classifier training still uses only the supplied Employment Scam Aegean dataset. The OCR engine's pretrained text-recognition weights are used solely for extraction. The classifier has not been validated on offer letters, and OCR accuracy has not yet been measured on a document sample.
@@ -137,9 +143,16 @@ Measured average precision (PR-AUC): TF-IDF 0.9542; text BiLSTM 0.4241; hybrid B
 - The audit found that empty predictions were scored. Added a clear HTTP 422 response and matching browser-side validation; confirmed the API returns 422 for an empty request.
 - Updated the guarded stop script to recognize both approved `C:\Codex` Python executables after identifying the stale-server restart failure. Restarted the API with the updated code; it is currently serving the upload-enabled prototype.
 
+## 2026-10-21 Results and input readability refinements
+
+- Removed the three individual model contribution cards from the assessment results UI at the user’s request. The combined ensemble probability, model identity, and evaluation metrics feature remain.
+- Increased spacing between the PDF/image extraction controls and the manual section-entry divider.
+- Enlarged the Evaluation Methodology description, step headings, step details, and caution note for easier reading.
+- Rebuilt the Vite production frontend successfully. New bundle: `frontend/dist/assets/index-DCsaaclg.js` and `index-C9c58XXr.css`.
+- No model or backend behavior changed. Refresh `http://127.0.0.1:8000/` to load the new UI.
 ## How to continue
 
-Read this file first and inspect the repository before continuing. Use `C:\Codex\venvs\bharat-rozgaar-sentinel\Scripts\python.exe` from this project directory. Read `RESEARCH_REVIEW.md` and `ARCHITECTURE.md`. The demo defaults to the baseline; model selection uses `BRS_MODEL=baseline|bilstm|hybrid_bilstm|distilbert`. All four artifacts are trained. Use `Launch Demo.bat` to start the local upload-enabled API and `stop-demo.ps1` to stop it. Remaining work is browser-level review of OCR edits and measurement on representative real documents; the classifier has not been validated on offer letters. Keep temporary work under `C:\Codex\tmp`. Preserve AI-based risk-assessment / “potentially fraudulent” language; never imply definitive proof.
+Historical continuation note; superseded by the current instructions at the end of this file.
 
 ## 2026-09-28 follow-up (historical)
 
@@ -239,14 +252,11 @@ Read this file first and inspect the repository before continuing. Use `C:\Codex
 - The GitHub-side commit tree contains the prepared project files; its commit hash differs from the locally prepared commits because upload used the GitHub API instead of `git push`. Do not assume local `main` is synchronized with the GitHub remote. For future command-line pushes, first configure GitHub authentication and synchronize from the remote branch. Keep the dataset and large generated weights/caches excluded.
 - Next: continue from the verified GitHub `main` tree and keep local and remote commit histories synchronized before making future pushes.
 
-
-
 ## 2026-10-19 Stitch UI handoff
 
-- Added `STITCH_UI_HANDOFF.md` to the project and GitHub `main`. It documents the existing React/FastAPI flows, API contract, redesign states, accessibility/visual direction, prediction language constraints, a tailored Stitch prompt, and import steps.
+- Added `STITCH_UI_HANDOFF.md` in the preferred project directory. It documents the existing React/FastAPI flows, API contract, redesign states, accessibility/visual direction, prediction language constraints, a tailored Stitch prompt, and the import workflow.
 - Google's May 19, 2026 announcement says Stitch supports importing existing codebases and design files. At the time this handoff was first written, direct Stitch access was unavailable; a private Stitch project was later created and populated as recorded below.
 - Next: review the imported screen in the private Stitch project, then bring selected redesigned screens/code back for integration. Preserve API behavior and do not treat generated metrics or unsupported states as real capabilities.
-
 
 ## 2026-10-19 Stitch upload and design system
 
@@ -255,7 +265,6 @@ Read this file first and inspect the repository before continuing. Use `C:\Codex
 - Uploaded `work/stitch-home.html`, a full-page `/home` capture of the local React website, as a desktop design (screen instance `2621135639633319397`, 1280×3102).
 - The HTML capture and design tokens came from the existing site; no application code or classifier/model artifacts were changed by this handoff.
 - Next: review the imported screen in Stitch, request the desired redesign there, then export the selected design/code and integrate it while preserving the FastAPI prediction and document-extraction contracts.
-
 
 ## 2026-10-19 Stitch export integration
 
@@ -267,7 +276,6 @@ Read this file first and inspect the repository before continuing. Use `C:\Codex
 - No automated tests or browser interactions were run in this update.
 - Next: manually review overview → analyze → results in the browser, then check an uploaded document and the print layout. Preserve the existing API contract and the “AI-based risk assessment / potentially fraudulent” wording.
 
-
 ## 2026-10-19 overview simplification
 
 - Removed the numerical summary band and hero dataset-count badge from the overview.
@@ -275,3 +283,71 @@ Read this file first and inspect the repository before continuing. Use `C:\Codex
 - Removed the repeated model-comparison metrics from the results view and removed the visible dataset name/source link and references across the website.
 - Kept the live assessment’s genuine/potentially-fraudulent probabilities and risk indicators, which are returned by the prediction API.
 - Rebuilt the Vite production frontend successfully. No backend, model, or evaluation artifact changed.
+
+## 2026-10-19 dark theme and typography refresh
+
+- Updated the site wordmark in the navigation and footer to “Bharat Rozgaar Sentinel”.
+- Removed the visible “System online / Connecting / API offline” header badge. The existing API health state remains in the app and still controls whether analysis can be submitted.
+- Applied a dark forest palette across page backgrounds, navigation, cards, form controls, upload surfaces, warnings, and assessment results. Increased body text readability and changed headings to a stronger, consistent sans-serif system font stack; no remote font dependency was added.
+- Rebuilt the Vite production frontend so FastAPI’s served site receives the updated assets. No prediction, extraction, model, or API code changed.
+- Next: inspect the updated overview, analyzer, and results pages in the browser at `http://127.0.0.1:8000/` and adjust any layout details that need refinement.
+
+## 2026-10-21 Local website launch
+
+- Started the website successfully with the repository launcher `start-demo.ps1`.
+- The project environment is `C:\Codex\venvs\bharat-rozgaar-sentinel\Scripts\python.exe`; the standalone `C:\Codex\Python312\python.exe` does not have Uvicorn installed. Requirements were already present in the project environment, so no package installation was needed.
+- The launcher reported the API ready at `http://127.0.0.1:8000/`. Automatic browser opening was unavailable in this desktop session; open the URL manually.
+- Next: use the site at the local URL. To start it again, run `start-demo.ps1` from the project directory or double-click `Launch Demo.bat`.
+
+## 2026-10-21 Website restart after connection refused
+
+- The browser screenshot showed `ERR_CONNECTION_REFUSED`, so port 8000 was not serving the site when checked.
+- Restarted the server with `start-demo.ps1` using the configured project virtual environment. Confirmed a post-launch `GET /health` response: `status=ready`, `model=baseline`, artifact `models\tfidf_lr\model.joblib`.
+- The website is currently available at `http://127.0.0.1:8000/`. The launcher could not open a browser automatically; refresh the existing tab.
+
+## 2026-10-21 Persistent website server session
+
+- The detached launcher health check was transient: the browser later reported connection refused after its launch command returned.
+- Started Uvicorn in an attached, persistent exec session instead of as a short-lived detached child. Confirmed `GET /health` returns `status=ready`, model `baseline`, artifact `models\tfidf_lr\model.joblib`.
+- Current server session is attached to the Codex runtime and serves `http://127.0.0.1:8000/`. Refresh the browser while that session remains running.
+
+## 2026-10-21 PowerShell website launcher instructions
+
+- Documented the reusable PowerShell/Windows Terminal command in `README.md`: `& "C:\Codex\Projects\Bharat Rozgar Sentinel\start-demo.ps1"`.
+- Added a process-scoped ExecutionPolicy Bypass alternative for machines where PowerShell blocks the script. It does not persistently change the machine's execution policy.
+- The existing launcher starts or reuses the local API and opens the browser; no new alias or profile change is required.
+- Next: the user can open PowerShell/Windows Terminal and run the command above whenever the site needs starting.
+
+## 2026-10-21 Readability and page scale
+
+- Fixed the overview illustration contrast: its pale card now uses dark, high-contrast text rather than inheriting the dark page text color.
+- Increased the overall content width, navigation and hero sizing, and small-label/body typography across the overview, analyzer, information cards, and assessment results. Added responsive values so the larger type and visible navigation adapt to compact browser panes.
+- Rebuilt the Vite frontend so the FastAPI-served site loads the updated stylesheet. No backend, model, or API behavior changed.
+- Next: refresh `http://127.0.0.1:8000/` at browser zoom 100% and review the overview, analyze, and results pages for any remaining spacing refinements.
+
+## 2026-10-21 Official brand logo
+
+- Added the user-provided Bharat Rozgaar Sentinel logo at `frontend/src/assets/bharat-rozgaar-sentinel-logo.png`.
+- Replaced the RS placeholder marks in the navigation and footer with the shield emblem from the provided logo, displayed on a compact white tile to retain contrast on the dark site. The existing text wordmark remains alongside it for legibility.
+- Vite imports the PNG as a hashed frontend asset, which is served through the existing `/assets` mount. No API or model behavior changed.
+- Vite production build succeeded, bundling the logo as `frontend/dist/assets/bharat-rozgaar-sentinel-logo-DVzXtTtn.png`. Refresh the local site to review the header and footer placements; browser screenshot review was not performed.
+
+## 2026-10-21 Three-model ensemble integration
+
+- Confirmed trained artifacts exist in the preferred project folder for TF-IDF + Logistic Regression, Word2Vec + BiLSTM, and DistilBERT. Kept the separate hybrid BiLSTM as an independent experiment; it is not part of this requested ensemble.
+- Added `python -m src.evaluation.ensemble`. It uses the shared fixed stratified split, combines the three model probabilities with equal one-third weights, selects the classification threshold by maximum validation F1, and reports once on the held-out test split. It saves `models/ensemble/ensemble_config.json`, `outputs/metrics/ensemble.json`, and `outputs/predictions/ensemble_test_predictions.csv`.
+- Measured ensemble test results: accuracy 0.9768, precision 0.8462, recall 0.6358, F1 0.7261, ROC-AUC 0.9857, PR-AUC 0.8469, threshold 0.659930. Validation F1 at the selected threshold is 0.84375. The ensemble is weaker by test F1 than standalone TF-IDF + Logistic Regression (0.8966); do not present it as a performance improvement.
+- Set `BRS_MODEL=ensemble` as the API and website launcher default. The prediction response includes the combined probability, validation-selected threshold, ensemble method/weights, and all three component probabilities. `/health` checks each artifact and the saved ensemble configuration. `/metrics` reads only existing evaluation JSON reports.
+- Added the three component scores to the results page, the `View model evaluation metrics` button and held-out comparison table, larger learned-word evidence, concise rule-indicator labels, and clearer Part I/II/III result stages. The learned-word evidence is explicitly identified as coming from the TF-IDF component.
+- Rebuilt the production frontend with Vite. Verified live `/health` reports ready/ensemble; `/metrics` returns the measured ensemble report; a live `/predict` call returns `model_used=ensemble` and probabilities for baseline, BiLSTM, and DistilBERT; the website serves the new JavaScript bundle. The local website is running at `http://127.0.0.1:8000/`.
+
+## 2026-10-21 Results and input readability refinements
+
+- Removed the three individual model contribution cards from the assessment results UI at the user’s request. The combined ensemble probability, model identity, and evaluation metrics feature remain.
+- Increased spacing between the PDF/image extraction controls and the manual section-entry divider.
+- Enlarged the Evaluation Methodology description, step headings, step details, and caution note for easier reading.
+- Rebuilt the Vite production frontend successfully. New bundle: `frontend/dist/assets/index-DCsaaclg.js` and `index-C9c58XXr.css`.
+- No model or backend behavior changed. Refresh `http://127.0.0.1:8000/` to load the new UI.
+## How to continue
+
+Read this file and inspect the current repo first. Use `C:\Codex\venvs\bharat-rozgaar-sentinel\Scripts\python.exe` and the preferred project folder `C:\Codex\Projects\Bharat Rozgar Sentinel`. The local site now runs the three-model equal-weight ensemble by default. Its held-out F1 (0.7261) is below the TF-IDF baseline (0.8966), so show all model metrics and explain the tradeoff accurately. To regenerate the ensemble config/report after any base-model change, run `python -m src.evaluation.ensemble`; then rebuild the frontend only if UI code changes. The API runs at `http://127.0.0.1:8000/`; `start-demo.ps1` selects ensemble mode and `stop-demo.ps1` stops the verified server. Do not claim the ensemble improves performance; any future weight tuning must use validation data and preserve the held-out test split. Keep AI-based risk-assessment language and never call a prediction proof of fraud.

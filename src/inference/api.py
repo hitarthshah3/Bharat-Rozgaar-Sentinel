@@ -1,5 +1,6 @@
 import os
 import tempfile
+import json
 from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -108,8 +109,27 @@ def website():
 
 @app.get("/health")
 def health():
+    paths = model_path()
     return {"status": "ready" if ready() else "model_not_trained",
-            "model": MODEL, "artifact_path": str(model_path())}
+            "model": MODEL,
+            "artifact_path": {name: str(path) for name, path in paths.items()}
+            if isinstance(paths, dict) else str(paths)}
+
+
+@app.get("/metrics")
+def evaluation_metrics():
+    """Return measured values found in saved evaluation reports."""
+    reports_dir = Path(__file__).resolve().parents[2] / "outputs" / "metrics"
+    reports = []
+    for path in sorted(reports_dir.glob("*.json")):
+        try:
+            report = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        reports.append({key: report.get(key) for key in (
+            "model", "accuracy", "precision", "recall", "f1", "roc_auc", "pr_auc", "threshold"
+        )})
+    return {"models": reports, "source": "saved held-out evaluation reports"}
 
 
 @app.post("/predict")
